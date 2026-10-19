@@ -2,10 +2,11 @@
 # Retiring: since 2026-10-05 GreenPT answers minimax-m2.5 with minimax-m3 and bills its price.
 # From 2026-11-05 requests return 400 Unsupported model. Source: https://docs.greenpt.ai/support/changelog
 # Sources: https://docs.greenpt.ai/pricing and https://docs.greenpt.ai/model-cards
-# reasoning_effort: GreenPT accepts the values below. It refuses "none" with a 400 because
-# thinking cannot be turned off, as it does any unlisted value. See https://docs.greenpt.ai/reasoning
-# The levels change the work done: on the production API (2026-10-19) one prompt spent
-# about 550 reasoning tokens at minimal and 1,250 at high.
+# reasoning_effort: minimax-m2.5 is served by MiniMax-M3, so it takes minimax-m3's values. The
+# retirement notice at https://docs.greenpt.ai/support/changelog (5 October 2026) says so ("It
+# accepts the same reasoning_effort values: minimal, low, medium and high"), and the per-model
+# table at https://docs.greenpt.ai/reasoning lists them for minimax-m3. On the production API
+# (2026-10-19) one prompt spent about 550 reasoning tokens at minimal and 1,250 at high.
 # cache_read: discounted rate for cached prompt tokens. Cache writes are not
 # charged. See https://docs.greenpt.ai/prompt-caching
 base_model = "minimax/MiniMax-M2.5"
