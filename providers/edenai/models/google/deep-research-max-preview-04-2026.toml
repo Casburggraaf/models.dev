@@ -7,9 +7,6 @@ reasoning_options = []
 input = 2
 output = 12
 
-[limit]
-context = 131_072
-
 [modalities]
 input = ["text", "image"]
 output = ["text"]
