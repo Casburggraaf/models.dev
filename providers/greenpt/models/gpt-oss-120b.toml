@@ -4,7 +4,6 @@
 # documented values are rejected with a 400. Verified against the production API.
 # See https://docs.greenpt.ai/chat-completion
 base_model = "openai/gpt-oss-120b"
-attachment = false
 reasoning_options = [{ type = "effort", values = ["low", "medium", "high"] }]
 
 [cost]
@@ -14,6 +13,3 @@ output = 0.798
 [limit]
 context = 128_000
 output = 32_000
-
-[modalities]
-input = ["text"]
