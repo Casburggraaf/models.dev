@@ -1,0 +1,25 @@
+# Cost: converted from GreenPT's EUR list price at 1.14 USD/EUR (rate captured 2026-07-24).
+# Sources: https://docs.greenpt.ai/reranker and https://docs.greenpt.ai/pricing
+# Served on POST /v1/rerank, not on chat completions.
+type = "reranking"
+name = "Green Rerank"
+description = "GreenPT reranker that scores how relevant each document is to a query"
+release_date = "2025-09-10"
+last_updated = "2025-09-10"
+attachment = false
+reasoning = false
+temperature = false
+tool_call = false
+open_weights = false
+
+[cost]
+input = 0.1368
+output = 0
+
+[limit]
+context = 32_000
+output = 0
+
+[modalities]
+input = ["text"]
+output = ["text"]
