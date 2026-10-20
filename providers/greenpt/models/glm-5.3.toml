@@ -3,6 +3,9 @@
 # GreenPT accepts reasoning_effort = none|minimal|low|medium|high.
 # Source: https://docs.greenpt.ai/reasoning
 # Cache writes are not charged: https://docs.greenpt.ai/prompt-caching
+# structured_output = false: on the production API (2026-10-20) a response_format of type
+# json_schema returns 400 "The model 'glm-5.3' does not support JSON schema mode. Use
+# 'json_object' mode instead"; json_object returns 200 with valid JSON.
 base_model = "zhipuai/glm-5.3"
 reasoning_options = [{ type = "effort", values = ["none", "minimal", "low", "medium", "high"] }]
 structured_output = false

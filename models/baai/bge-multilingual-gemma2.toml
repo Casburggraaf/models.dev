@@ -1,26 +1,31 @@
 # https://huggingface.co/BAAI/bge-multilingual-gemma2
 # release_date is the Hugging Face repository creation date (API createdAt 2024-07-25).
-# Context and dimension from config.json: max_position_embeddings 8192, hidden_size 3584.
+# Context from config.json: max_position_embeddings 8192 (embedding dimension 3584).
+# Embedding model: no sampling, output is embeddings.
+schema = 2
+v2_only = true
+type = "embedding"
 name = "BGE Multilingual Gemma2"
 description = "Multilingual embedding model built on Gemma 2 9B for retrieval, search and clustering"
-type = "embedding"
 family = "bge"
-release_date = "2024-07-25"
-last_updated = "2024-07-25"
-attachment = false
-reasoning = false
-tool_call = false
-temperature = false
 open_weights = true
+release_date = "2024-07-25"
 license = "Gemma"
-
-[limit]
-context = 8_192
-output = 3_584
 
 [modalities]
 input = ["text"]
-output = ["text"]
+output = ["embedding"]
+
+[capabilities]
+tools = { supported = false }
+reasoning = { supported = false }
+temperature = false
+top_p = false
+top_k = false
+
+[limit]
+context = 8_192
+output = 0
 
 [[weights]]
 label = "Hugging Face"
