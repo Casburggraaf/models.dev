@@ -1,7 +1,13 @@
 import { z } from "zod";
 
 import { ModelFamily, ModelFamilyValues } from "./family.js";
-import { DateString, JsonValue } from "./schema.js";
+import {
+  BenchmarkResult,
+  DateString,
+  JsonValue,
+  ModelLink,
+  ModelWeights,
+} from "./schema.js";
 
 /**
  * Creates an open-ended string union for public API / OpenAPI schemas.
@@ -642,6 +648,8 @@ export type CostV2 = z.infer<typeof CostV2>;
 
 export const ExperimentalModeV2 = z
   .object({
+    // The service tier this mode runs on, when it differs from the mode name.
+    service_tier: ServiceTierV2.optional(),
     cost: CostV2.optional(),
     capabilities: CapabilitiesOverrideV2.optional(),
     body: z.record(JsonValue).optional(),
@@ -684,6 +692,94 @@ export const ModelV2 = z
   .strict();
 
 export type ModelV2 = z.infer<typeof ModelV2>;
+
+// Lab files only hold what is true of the model on every host. Everything else
+// (reasoning controls, structured output, cache, service tiers…) is per provider.
+export const LabCapabilitiesV2 = z
+  .object({
+    tools: ToolsSupportV2,
+    reasoning: z.object({ supported: z.boolean() }).strict(),
+    temperature: z.boolean(),
+    top_p: z.boolean(),
+    top_k: z.boolean(),
+  })
+  .strict();
+
+export type LabCapabilitiesV2 = z.infer<typeof LabCapabilitiesV2>;
+
+// Authored lab model file (`models/<lab>/<model>.toml`): provider-agnostic facts
+// that hosts inherit through `base_model`.
+export const LabModelV2 = z
+  .object({
+    // Published in the v2 API only; v1 output leaves the model out.
+    v2_only: z.boolean().optional(),
+    id: z.string(),
+    type: ModelTypeV2.optional(),
+    name: z.string().min(1, "Model name cannot be empty"),
+    description: z.string().min(1, "Model description cannot be empty"),
+    family: ModelFamilyV2.optional(),
+    open_weights: z.boolean(),
+    knowledge: DateString.optional(),
+    release_date: DateString,
+    last_updated: DateString.optional(),
+    modalities: ModalitiesV2,
+    capabilities: LabCapabilitiesV2,
+    limit: LimitV2,
+    license: z.string().min(1, "License cannot be empty").optional(),
+    links: z.array(ModelLink).optional(),
+    weights: z.array(ModelWeights).optional(),
+    benchmarks: z.array(BenchmarkResult).optional(),
+    metadata: z.record(JsonValue).optional(),
+  })
+  .strict();
+
+export type LabModelV2 = z.infer<typeof LabModelV2>;
+
+// A provider model file's own API, when it differs from the provider's default:
+// another SDK, base URL or protocol, or a reasoning wire requirement. Omitted
+// parts come from the provider.
+export const AuthoredApiEntryV2 = z
+  .object({
+    base_url: ApiBaseUrlV2.optional(),
+    sdk: z.object({ aisdk: z.string().min(1) }).strict().optional(),
+    compatibility: CompatibilityV2.pick({ reasoning_field: true, replay_reasoning: true })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export type AuthoredApiEntryV2 = z.infer<typeof AuthoredApiEntryV2>;
+
+// Authored provider model file (`providers/<provider>/models/<model>.toml`). With
+// `base_model`, it holds only what differs from the lab file. Without it, it is a
+// full definition.
+export const AuthoredModelV2 = z
+  .object({
+    // Published in the v2 API only; v1 output leaves the model out.
+    v2_only: z.boolean().optional(),
+    id: z.string(),
+    base_model: z.string().min(1, "Base model cannot be empty").optional(),
+    base_model_omit: z.array(z.string()).optional(),
+    type: ModelTypeV2.optional(),
+    name: z.string().min(1, "Model name cannot be empty").optional(),
+    description: z.string().min(1, "Model description cannot be empty").optional(),
+    family: ModelFamilyV2.optional(),
+    open_weights: z.boolean().optional(),
+    knowledge: DateString.optional(),
+    release_date: DateString.optional(),
+    last_updated: DateString.optional(),
+    status: z.enum(["alpha", "beta", "deprecated"]).optional(),
+    modalities: ModalitiesV2.optional(),
+    capabilities: CapabilitiesOverrideV2.optional(),
+    limit: LimitV2.optional(),
+    cost: CostV2.optional(),
+    api: z.record(ApiProtocolV2, AuthoredApiEntryV2).optional(),
+    experimental: ExperimentalV2.optional(),
+    metadata: z.record(JsonValue).optional(),
+  })
+  .strict();
+
+export type AuthoredModelV2 = z.infer<typeof AuthoredModelV2>;
 
 export const ProviderV2 = z
   .object({

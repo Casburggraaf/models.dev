@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { AuthoredModelShape, ReasoningOption } from "../../schema.js";
+import { readLabModel } from "../../translate.js";
 import type { ExistingModel, SyncProvider, SyncedBaseModel } from "../index.js";
 import { MissingReasoningOptionsError } from "../missing-reasoning-options.js";
 
@@ -104,6 +105,8 @@ const SourceModel = z.object({
   schemaInput: z.unknown().optional(),
 });
 
+const NoteLines = z.array(z.string().refine((value) => !/[\r\n]/.test(value)));
+
 const CuratedModel = z.object({
   base_model: z.string().refine(isSafeModelID, "base_model must be a safe relative provider/model path").optional(),
   structured_output: z.boolean().optional(),
@@ -119,11 +122,14 @@ const CuratedModel = z.object({
     z.literal(true),
     z.object({ field: z.enum(["reasoning_content", "reasoning_details"]) }).strict(),
   ]).optional(),
-  note: z.array(z.string().refine((value) => !/[\r\n]/.test(value))).optional(),
+  note: NoteLines.optional(),
 }).strict();
 
 const Curation = z.object({
   skip: z.array(z.string()).default([]),
+  // Leading comment lines for every model whose id starts with the key (route and
+  // source notes shared by a family), written before the model's own note.
+  prefix_notes: z.record(NoteLines).default({}),
   models: z.record(CuratedModel).default({}),
 }).strict();
 
@@ -188,7 +194,7 @@ export const cloudflareAiGateway = {
         curated,
         context.authored(id),
       ),
-      header: noteHeader(curated.note),
+      header: noteHeader([...prefixNotes(id), ...curated.note ?? []]),
     };
   },
 } satisfies SyncProvider<SourceModel>;
@@ -613,7 +619,14 @@ function labFileExists(id: string) {
 function baseReasoning(id: string) {
   const file = path.join(MODELS_ROOT, `${id}.toml`);
   return existsSync(file) && z.object({ reasoning: z.boolean().optional() }).passthrough()
-    .parse(Bun.TOML.parse(readFileSync(file, "utf8"))).reasoning === true;
+    .parse(readLabModel(file, id)).reasoning === true;
+}
+
+function prefixNotes(id: string) {
+  return Object.entries(curation.prefix_notes)
+    .filter(([prefix]) => id.startsWith(prefix))
+    .sort(([a], [b]) => a.length - b.length)
+    .flatMap(([, lines]) => lines);
 }
 
 function noteHeader(note: string[] | undefined) {

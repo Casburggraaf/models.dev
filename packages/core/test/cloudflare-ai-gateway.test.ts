@@ -1,4 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -199,13 +200,45 @@ test("uses Cloudflare's curated route controls for Kimi K3 and Fireworks DeepSee
   }, { authored: () => undefined, existing: () => undefined }).model.reasoning_options;
 
   expect(translate("moonshotai/kimi-k3")).toEqual([
-    { type: "effort", values: ["low", "high", "max"] },
+    { type: "effort", values: ["none", "low", "high", "max"] },
+  ]);
+  // The catalog schema's generic reasoning.effort enum (none..max) is not what Muse Spark 1.1
+  // accepts on this route; the curated list overrides it.
+  expect(cloudflareAiGateway.translateModel({
+    catalog: {
+      model_id: "meta/muse-spark-1.1",
+      task: "Text Generation" as const,
+      provider_details: providerDetails({ input_tokens: 1, output_tokens: 2 }),
+    },
+    schemaInput: { properties: { reasoning: { properties: { effort: { enum: ["none", "low", "medium", "high", "xhigh", "max"] } } } } },
+  }, { authored: () => undefined, existing: () => undefined }).model.reasoning_options).toEqual([
+    { type: "effort", values: ["minimal", "low", "medium", "high", "xhigh"] },
   ]);
   expect(translate("deepseek/deepseek-v4-pro")).toEqual([
     { type: "effort", values: ["none", "low", "high", "max"] },
   ]);
   expect(translate("anthropic/claude-sonnet-5")).toContainEqual({ type: "toggle" });
   expect(translate("alibaba/qwen3.8-max")).toContainEqual({ type: "toggle" });
+});
+
+test("writes family prefix notes before a model's own note", () => {
+  const curation = Bun.TOML.parse(
+    readFileSync(path.join(import.meta.dirname, "../../../providers/cloudflare-ai-gateway/curation.toml"), "utf8"),
+  ) as { prefix_notes: Record<string, string[]>; models: Record<string, { note?: string[] }> };
+  const header = (model_id: string) => cloudflareAiGateway.translateModel({
+    catalog: {
+      model_id,
+      task: "Text Generation" as const,
+      provider_details: providerDetails({ input_tokens: 1, output_tokens: 2 }),
+    },
+  }, { authored: () => undefined, existing: () => undefined }).header;
+  const lines = (notes: string[]) => notes.map((line) => `# ${line}\n`).join("");
+
+  expect(header("moonshotai/kimi-k3")).toBe(
+    lines([...curation.prefix_notes["moonshotai/"]!, ...curation.models["moonshotai/kimi-k3"]!.note!]),
+  );
+  expect(header("meta/muse-spark-open")).toStartWith(lines(curation.prefix_notes["meta/muse-spark-open"]!));
+  expect(header("xai/grok-4.20-0309-non-reasoning")).toBe(lines(curation.prefix_notes["xai/"]!));
 });
 
 test("ignores advertised reasoning controls for non-reasoning base models", () => {
@@ -534,6 +567,44 @@ test("reconciles authoritative generated headers", async () => {
     expect(result.updated).toBe(1);
     expect(await readFile(file, "utf8")).toStartWith("# New note\nbase_model");
     expect((await syncProvider(provider)).updated).toBe(0);
+  } finally {
+    await rm(providerDir, { recursive: true, force: true });
+  }
+});
+
+test("writes new native-route models as v2 files with their API protocol", async () => {
+  const providersDir = path.join(import.meta.dirname, "..", "..", "..", "providers");
+  const providerDir = await mkdtemp(path.join(providersDir, ".cloudflare-ai-gateway-v2-"));
+  const modelsDir = path.join(providerDir, "models");
+  await mkdir(path.join(modelsDir, "openai"), { recursive: true });
+  await writeFile(path.join(providerDir, "provider.toml"), 'name = "Test"\nnpm = "ai-gateway-provider"\nenv = []\n');
+  const existing = 'schema = 2\nbase_model = "openai/gpt-4.1"\n\n[capabilities]\nsystem_updates = true\n\n'
+    + '[api.responses]\nsdk = { aisdk = "@ai-sdk/openai" }\n';
+  await writeFile(path.join(modelsDir, "openai", "gpt-4.1.toml"), existing);
+
+  try {
+    const provider = {
+      ...cloudflareAiGateway,
+      modelsDir,
+      async fetchModels() {
+        return ["openai/gpt-4.1", "anthropic/claude-opus-4.7", "openai/gpt-5.5"].map((model_id) => ({
+          catalog: {
+            model_id,
+            task: "Text Generation",
+            provider_details: providerDetails({ input_tokens: 1, output_tokens: 2 }),
+          },
+        }));
+      },
+    };
+    const result = await syncProvider(provider);
+
+    expect(result.notices ?? []).toEqual([]);
+    const opus = await readFile(path.join(modelsDir, "anthropic", "claude-opus-4.7.toml"), "utf8");
+    expect(opus).toContain("\nschema = 2\n");
+    expect(opus).toContain('[api.messages]\nsdk = { aisdk = "@ai-sdk/anthropic" }');
+    const gpt = await readFile(path.join(modelsDir, "openai", "gpt-5.5.toml"), "utf8");
+    expect(gpt).toContain('[api.responses]\nsdk = { aisdk = "@ai-sdk/openai" }');
+    expect(await readFile(path.join(modelsDir, "openai", "gpt-4.1.toml"), "utf8")).toContain("system_updates = true");
   } finally {
     await rm(providerDir, { recursive: true, force: true });
   }
